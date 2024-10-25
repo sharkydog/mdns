@@ -33,7 +33,7 @@ public function __construct(int $timeout=2, bool $unicast=true, ?ResolverInterfa
   If `false`, queries are sent with source port 5353 and resolver listens in multicast group.
 - If `$dnsResolver` is supplied, only domains ending in `.local` are queried to the multicast group.
 
-### Respnder
+### Responder
 ```php
 use SharkyDog\mDNS;
 
