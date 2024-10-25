@@ -53,3 +53,5 @@ public function addRecordIPv4(string $name, string $addr, int $ttl=120);
 public function addRecordIPv6(string $name, string $addr, int $ttl=120);
 public function addRecord(React\Dns\Model\Record $record);
 ```
+
+At some point in the future, this may receive service discovery and proper responder.
