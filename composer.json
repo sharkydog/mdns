@@ -1,0 +1,25 @@
+{
+  "name": "sharkydog/mdns",
+  "description": "mDNS resolver and responder based on ReactPHP",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Aleksandar Dimitrov",
+      "email": "admin@sharkydog.info"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "react/event-loop": "^1.5",
+    "react/dns": "^1.13",
+    "clue/multicast-react": "^1.2"
+  },
+  "suggest": {
+    "sharkydog/logger": "Display messages other than errors and warnings"
+  },
+  "autoload": {
+    "psr-4": {
+      "SharkyDog\\mDNS\\": "src/"
+    }
+  }
+}
