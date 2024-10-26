@@ -54,4 +54,44 @@ public function addRecordIPv6(string $name, string $addr, int $ttl=120);
 public function addRecord(React\Dns\Model\Record $record);
 ```
 
-At some point in the future, this may receive service discovery and proper responder.
+### Service discovery responder (from v1.1)
+Basic service discovery
+```php
+use SharkyDog\mDNS;
+
+$mdnsd = new mDNS\SimpleResponder;
+$mdnsd->addRecordIPv4('my-local-pc.local', '192.168.1.123');
+$mdnsd->addService('_testsvc1._tcp', 'instance1', -1, 'my-local-pc.local', 23456, 'aa','bb','cc');
+
+$mdnsd->start();
+```
+The `addService()` is the key point.
+```php
+public function addService(string $type, string $instance, ?int $ttl=null, ?string $target=null, int $srvport=0, string ...$txts);
+```
+- `$type` and `$instance` form the service `instance1._testsvc1._tcp.local`
+- `$ttl` (default 120) will be used for all records (`PTR`, `SRV` and `TXT`)
+- If `$target` is supplied, automatic `SRV` and `TXT` records will be created
+  - `SRV` will have priority=0, weight=0, port=`$srvport` and target=`$target`
+  - `TXT` will be empty if `$txts` array is empty
+- No automatic `SRV` and `TXT` records will be created if those already exist for the service (`instance1._testsvc1._tcp.local`)
+  - Use `addRecord()` before `addService()`
+- An automatic `PTR` will be added for `_services._dns-sd._udp.local` pointing to the new service type (`_testsvc1._tcp.local`)
+  - Same as above, if it does not already exist
+- `A` and `AAAA` records can not be auto created
+
+This service discovery still suffers from the same limitation of the `SimpleResponder` class mentioned above.
+One record per message (help appreciated), which means a discoverer will have to make separate queries to follow PTRs.
+
+### RecordFactory class (from v1.1)
+New class (`SharkyDog\mDNS\RecordFactory`) to help create records and validate some parameters. IPv4 and IPv6 addresses are not yet checked thought.
+```php
+use SharkyDog\mDNS;
+
+$rfy = new mDNS\RecordFactory;
+$mdnsd = new mDNS\SimpleResponder;
+
+$mdnsd->addRecord($rfy->A('my-router.local', '192.168.1.1'));
+$mdnsd->addRecord($rfy->A('my-pc.local', '192.168.1.2'));
+$mdnsd->addRecord($rfy->TXT('sometxt-my-pc.local', 120, 'txt1','txt2','...'));
+```
