@@ -11,6 +11,7 @@ use React\Dns\Protocol\BinaryDumper as DnsEncoder;
 
 class UnicastExecutor implements ExecutorInterface {
   public function query(Query $query) {
+    $query->class |= 0x8000;
     $message = Message::createRequestForQuery($query);
     $socket = (new MulticastFactory)->createSender();
     $parser = new DnsParser;
