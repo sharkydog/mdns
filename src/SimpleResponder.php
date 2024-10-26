@@ -80,8 +80,10 @@ class SimpleResponder {
         return;
       }
 
+      $ucp = !preg_match('/\:5353$/', $addr);
+
       foreach($message->questions as $query) {
-        $qu = (bool)($query->class & 0x8000);
+        $qu = $ucp ?: (bool)($query->class & 0x8000);
         $rrs = $this->_rr($query->name, $query->type);
 
         if(empty($rrs)) {
@@ -93,6 +95,8 @@ class SimpleResponder {
           Log::debug('Responder: '.$addr.' asked for record['.$rr->name.','.$rr->type.$dbg_rrdata.']');
 
           $this->_queue[] = (object)[
+            'i' => $ucp ? $message->id : null,
+            'q' => $ucp ? $query : null,
             'r' => $rr,
             'a' => $qu ? $addr : null
           ];
@@ -139,6 +143,13 @@ class SimpleResponder {
       $response = new Message;
       $response->qr = true;
       $response->answers[] = $data->r;
+
+      if($data->i) {
+        $response->id = $data->i;
+      }
+      if($data->q) {
+        $response->questions[] = $data->q;
+      }
 
       $dbg_rrdata = is_string($data->r->data) ? ','.$data->r->data : '';
       Log::debug('Responder: send['.($data->a?:'QM').'] record['.$data->r->name.','.$data->r->type.$dbg_rrdata.']');
