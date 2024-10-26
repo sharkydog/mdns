@@ -95,3 +95,26 @@ $mdnsd->addRecord($rfy->A('my-router.local', '192.168.1.1'));
 $mdnsd->addRecord($rfy->A('my-pc.local', '192.168.1.2'));
 $mdnsd->addRecord($rfy->TXT('sometxt-my-pc.local', 120, 'txt1','txt2','...'));
 ```
+### Service discovery querier
+Discovering services is not implemented yet, but there is a hack around with a little promise chain.
+You need to know the exact name of the `SRV` record for the instance of the service you are interested in.
+One more promise and you can get the `TXT` record too.
+
+```php
+use SharkyDog\mDNS;
+use React\Dns\Model\Message;
+
+$resolver = new mDNS\React\Resolver;
+$port = 0;
+
+$resolver->resolveAll(
+  'testsvc1._testsvc._tcp.local', Message::TYPE_SRV
+)->then(function($srv) use($resolver,&$port) {
+  $port = $srv[0]['port'];
+  return $resolver->resolve($srv[0]['target']);
+})->then(function($addr) use(&$port) {
+  print "Found service at ".$addr.":".$port."\n";
+})->catch(function(\Exception $e) {
+  print "Error: ".$e->getMessage()."\n";
+});
+```
