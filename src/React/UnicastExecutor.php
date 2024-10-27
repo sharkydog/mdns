@@ -10,6 +10,13 @@ use React\Dns\Protocol\Parser as DnsParser;
 use React\Dns\Protocol\BinaryDumper as DnsEncoder;
 
 class UnicastExecutor implements ExecutorInterface {
+  private $_collector;
+
+  public function setCollector(Message $collector) {
+    $this->_collector = $collector;
+    $this->_collector->qr = true;
+  }
+
   public function query(Query $query) {
     $query->class |= 0x8000;
     $message = Message::createRequestForQuery($query);
@@ -33,7 +40,16 @@ class UnicastExecutor implements ExecutorInterface {
         return;
       }
 
-      $deferred->resolve($message);
+      if($this->_collector) {
+        if(!$this->_collector->id) {
+          $this->_collector->id = $message->id;
+        }
+        foreach($message->answers as $record) {
+          $this->_collector->answers[] = $record;
+        }
+      } else {
+        $deferred->resolve($message);
+      }
     });
 
     $message = (new DnsEncoder)->toBinary($message);
@@ -41,6 +57,7 @@ class UnicastExecutor implements ExecutorInterface {
 
     return $deferred->promise()->finally(function() use($socket) {
       $socket->close();
+      $this->_collector = null;
     });
   }
 }

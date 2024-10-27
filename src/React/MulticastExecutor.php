@@ -7,6 +7,13 @@ use React\Dns\Model\Message;
 use React\Promise\Deferred;
 
 class MulticastExecutor implements ExecutorInterface {
+  private $_collector;
+
+  public function setCollector(Message $collector) {
+    $this->_collector = $collector;
+    $this->_collector->qr = true;
+  }
+
   public function query(Query $query) {
     $message = Message::createRequestForQuery($query);
     $socket = new Socket;
@@ -21,6 +28,7 @@ class MulticastExecutor implements ExecutorInterface {
       if($message->qr !== true) {
         return;
       }
+
       foreach($message->answers as $record) {
         if($record->type != $rrtype) {
           continue;
@@ -28,8 +36,13 @@ class MulticastExecutor implements ExecutorInterface {
         if(strtolower($record->name) != $rrname) {
           continue;
         }
-        $deferred->resolve($message);
-        return;
+
+        if($this->_collector) {
+          $this->_collector->answers[] = $record;
+        } else {
+          $deferred->resolve($message);
+          return;
+        }
       }
     });
 
@@ -37,6 +50,7 @@ class MulticastExecutor implements ExecutorInterface {
 
     return $deferred->promise()->finally(function() use($socket) {
       $socket->removeAllListeners();
+      $this->_collector = null;
     });
   }
 }
