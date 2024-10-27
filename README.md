@@ -118,3 +118,75 @@ $resolver->resolveAll(
   print "Error: ".$e->getMessage()."\n";
 });
 ```
+
+### Multiple messages resolver (from v1.2)
+React resolver will use the first received message, which is proper for DNS, but in mDNS world multiple hosts can answer a query.
+To return answers from multiple messages some extensions to `SharkyDog\mDNS\React\Resolver` and executors need to be made.
+
+A new parameter is added to `resolveAll`
+```php
+public function resolveAll($domain, $type, bool $multi=false);
+```
+When `$multi` is `true`, the timeout will be turned into time to collect messages.
+So, no timeout error will be thrown, response will be returned after timeout have passed
+and if no valid message was received in that time, React will throw `NOERROR / NODATA` error.
+
+If the resolver was created with `$dnsResolver` parameter, `$multi` will set to `false` for all domains except `.local`.
+
+Let's see how many web servers in our newtwork will respond in 2 seconds.
+```php
+use SharkyDog\mDNS;
+use React\Dns\Model\Message;
+
+$resolver = new mDNS\React\Resolver(2);
+$resolver->resolveAll('_http._tcp.local', Message::TYPE_PTR, true)->then(
+  function($data) {
+    print_r(array_unique($data));
+  },
+  function(\Exception $e) {
+    print "Error: ".$e->getMessage()."\n";
+  }
+);
+```
+This will return an array of PTRs (targets).
+```
+Array
+(
+    [0] => shellyplus1pm-xxxxxxxxxxxx._http._tcp.local
+    [1] => shellyem-xxxxxxxxxxxx._http._tcp.local
+    [2] => shellyplus2pm-xxxxxxxxxxxx._http._tcp.local
+)
+```
+These are service instance names, like `instance1._testsvc1._tcp.local` from the Service discovery responder example above.
+Only queried record types (in this case PTRs) should be returned as `additional` section is not processed.
+
+Now, let's find all service types advertised on the local network.
+```php
+use SharkyDog\mDNS;
+use React\Dns\Model\Message;
+
+$resolver = new mDNS\React\Resolver(2);
+$resolver->resolveAll('_services._dns-sd._udp.local', Message::TYPE_PTR, true)->then(
+  function($data) {
+    print_r(array_unique($data));
+  },
+  function(\Exception $e) {
+    print "Error: ".$e->getMessage()."\n";
+  }
+);
+```
+Should return
+```
+Array
+(
+    [0] => _nut._tcp.local
+    [1] => _smb._tcp.local
+    [2] => _testsvc._tcp.local
+    [3] => _esphomelib._tcp.local
+    [4] => _http._tcp.local
+    [5] => _shelly._tcp.local
+    [6] => _androidtvremote2._tcp.local
+    [7] => _googlecast._tcp.local
+)
+```
+Probably many more.
