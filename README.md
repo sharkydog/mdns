@@ -121,7 +121,7 @@ $resolver->resolveAll(
 
 ### Multiple messages resolver (from v1.2)
 React resolver will use the first received message, which is proper for DNS, but in mDNS world multiple hosts can answer a query.
-To return answers from multiple messages some extensions to `SharkyDog\mDNS\React\Resolver` and executors need to be made.
+To return answers from multiple messages, some extensions to `SharkyDog\mDNS\React\Resolver` and executors need to be made.
 
 A new parameter is added to `resolveAll`
 ```php
@@ -131,9 +131,9 @@ When `$multi` is `true`, the timeout will be turned into time to collect message
 So, no timeout error will be thrown, response will be returned after timeout have passed
 and if no valid message was received in that time, React will throw `NOERROR / NODATA` error.
 
-If the resolver was created with `$dnsResolver` parameter, `$multi` will set to `false` for all domains except `.local`.
+If the resolver was created with `$dnsResolver` parameter, `$multi` will be set to `false` for all domains except `.local`.
 
-Let's see how many web servers in our newtwork will respond in 2 seconds.
+Let's see how many web servers in our network will respond in 2 seconds.
 ```php
 use SharkyDog\mDNS;
 use React\Dns\Model\Message;
