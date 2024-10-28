@@ -9,6 +9,7 @@ use Clue\React\Multicast\Factory as MulticastFactory;
 final class Socket extends EventEmitter {
   const NS = '224.0.0.251:5353';
 
+  private static $_packet_size = 1472;
   private static $_emitter;
   private static $_decoder;
   private static $_encoder;
@@ -18,9 +19,15 @@ final class Socket extends EventEmitter {
 
   private $_listeners = [];
 
+  public static function setPacketSize(int $size) {
+    self::$_packet_size = max(12,$size);
+  }
+
   public function __construct() {
     if(!self::$_emitter) {
       self::$_emitter = new EventEmitter;
+      self::$_decoder = new DnsParser;
+      self::$_encoder = new DnsEncoder;
     }
   }
 
@@ -53,17 +60,23 @@ final class Socket extends EventEmitter {
   public function emit($event, array $arguments = []) {
   }
 
-  public function send(Message $message, ?string $addr=null) {
-    $socket = $this->_getSocket();
+  public function send(Message $message, ?string $addr=null): ?bool {
     $message = self::$_encoder->toBinary($message);
+
+    if(strlen($message) > self::$_packet_size) {
+      return false;
+    }
 
     if(self::$_ending) {
       self::$_queue[] = $message;
-      return;
+      return null;
     }
 
+    $socket = $this->_getSocket();
     $socket->send($message, $addr ?: self::NS);
     $this->_end();
+
+    return true;
   }
 
   private function _getSocket() {
@@ -71,15 +84,10 @@ final class Socket extends EventEmitter {
       return self::$_socket;
     }
 
-    self::$_decoder = new DnsParser;
-    self::$_encoder = new DnsEncoder;
-
     $socket = self::$_socket = (new MulticastFactory)->createReceiver(self::NS);
 
     $socket->on('close', function() {
       self::$_emitter->emit('close', [$this]);
-      self::$_decoder = null;
-      self::$_encoder = null;
       self::$_socket = null;
       self::$_ending = false;
 

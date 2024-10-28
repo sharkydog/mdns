@@ -151,11 +151,44 @@ class SimpleResponder {
         $response->questions[] = $data->q;
       }
 
+      $rrs = [$data->r];
+      while($rr = array_shift($rrs)) {
+        if($rr->type == Message::TYPE_PTR) {
+          foreach($this->_rr($rr->data, Message::TYPE_ANY) as $addrr) {
+            $key = $addrr->name.'|'.$addrr->type;
+            $response->additional[$key] = $addrr;
+            if(in_array($addrr->type, [Message::TYPE_PTR,Message::TYPE_SRV])) {
+              $rrs[] = $addrr;
+            }
+          }
+        } else if($rr->type == Message::TYPE_SRV) {
+          foreach($this->_rr($rr->data['target'], Message::TYPE_A) as $addrr) {
+            $key = $addrr->name.'|'.Message::TYPE_A;
+            $response->additional[$key] = $addrr;
+          }
+          foreach($this->_rr($rr->data['target'], Message::TYPE_AAAA) as $addrr) {
+            $key = $addrr->name.'|'.Message::TYPE_AAAA;
+            $response->additional[$key] = $addrr;
+          }
+        }
+      }
+      $response->additional = array_values($response->additional);
+
       $dbg_rrdata = is_string($data->r->data) ? ','.$data->r->data : '';
       Log::debug('Responder: send['.($data->a?:'QM').'] record['.$data->r->name.','.$data->r->type.$dbg_rrdata.']');
 
-      $this->_socket->send($response, $data->a);
-      $this->_send_ms = round(microtime(true) * 1000);
+      $r = $this->_socket->send($response, $data->a);
+
+      if($r === false && !empty($response->additional)) {
+        $response->additional = [];
+        Log::debug('Responder: send too big, remove additional and retry');
+        $r = $this->_socket->send($response, $data->a);
+      }
+
+      if($r !== false) {
+        Log::debug('Responder: send OK');
+        $this->_send_ms = round(microtime(true) * 1000);
+      }
 
       $this->_send();
     };
