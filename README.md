@@ -224,3 +224,45 @@ Any records in `answers` section of the DNS message that do not match the name i
 Replies to queries for `PTR` or `SRV` will add additional records that exist in the responder, added via `addRecordIPv4()`, `addRecordIPv6()`, `addRecord()` or `addService()`.
 - Any records a `PTR` is pointing to.
 - The target of a `SRV` (an `A`, `AAAA` or both).
+
+### Message filter for the resolver (from v1.3)
+This is a callback that can filter out DNS messages before they are handled by the resolver.
+The purpose of this filter is to remove unwanted records in multi mode (`$multi == true`) or to select the exact record in single mode (`$multi == false`) instead of the first received.
+This also reflects on what additional records will be included as nothing is used from filtered out messages.
+
+Only messages that have an answer matching query name and type will reach the filter.
+
+Find a specific http server.
+```php
+use SharkyDog\mDNS;
+use React\Dns\Model\Message;
+
+$filter = function(Message $message, string $addr) {
+  print "Message from ".$addr."\n";
+
+  foreach($message->answers as $record) {
+    if($record->type != Message::TYPE_PTR) {
+      continue;
+    }
+    if($record->data == 'shellyem-xxxxxxxxxxxx._http._tcp.local') {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+$resolver = new mDNS\React\Resolver(2);
+$resolver->setMDnsFilter($filter);
+
+$resolver->resolveAll('_http._tcp.local', Message::TYPE_PTR, false, true)->then(
+  function($data) {
+    $additional = isset($data['additional']) ? array_pop($data) : null;
+    print_r(array_unique($data));
+    print_r($additional);
+  },
+  function(\Exception $e) {
+    print "Error: ".$e->getMessage()."\n";
+  }
+);
+```
