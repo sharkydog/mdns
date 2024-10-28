@@ -39,7 +39,7 @@ class Resolver implements ResolverInterface {
     $resolver = $this->_getResolver($domain);
 
     if($resolver !== $this->_resolver) {
-      $multi = false;
+      return $resolver->resolveAll($domain, $type);
     }
 
     if($multi) {
