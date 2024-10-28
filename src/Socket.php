@@ -2,8 +2,6 @@
 namespace SharkyDog\mDNS;
 use Evenement\EventEmitter;
 use React\Dns\Model\Message;
-use React\Dns\Protocol\Parser as DnsParser;
-use React\Dns\Protocol\BinaryDumper as DnsEncoder;
 use Clue\React\Multicast\Factory as MulticastFactory;
 
 final class Socket extends EventEmitter {
@@ -11,8 +9,6 @@ final class Socket extends EventEmitter {
 
   private static $_packet_size = 1472;
   private static $_emitter;
-  private static $_decoder;
-  private static $_encoder;
   private static $_socket;
   private static $_ending = false;
   private static $_queue = [];
@@ -21,20 +17,6 @@ final class Socket extends EventEmitter {
 
   public static function setPacketSize(int $size) {
     self::$_packet_size = max(12,$size);
-  }
-
-  public static function dnsDecoder(): DnsParser {
-    if(!self::$_decoder) {
-      self::$_decoder = new DnsParser;
-    }
-    return self::$_decoder;
-  }
-
-  public static function dnsEncoder(): DnsEncoder {
-    if(!self::$_encoder) {
-      self::$_encoder = new DnsEncoder;
-    }
-    return self::$_encoder;
   }
 
   public function __construct() {
@@ -73,7 +55,7 @@ final class Socket extends EventEmitter {
   }
 
   public function send(Message $message, ?string $addr=null): ?bool {
-    $message = self::dnsEncoder()->toBinary($message);
+    $message = DnsMessage::encode($message);
 
     if(strlen($message) > self::$_packet_size) {
       return false;
@@ -122,10 +104,7 @@ final class Socket extends EventEmitter {
       if(!count(self::$_emitter->listeners('dns-message'))) {
         return;
       }
-
-      try {
-        $message = self::dnsDecoder()->parseMessage($data);
-      } catch(\Exception $e) {
+      if(!($message = DnsMessage::decode($data))) {
         return;
       }
 

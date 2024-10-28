@@ -1,6 +1,7 @@
 <?php
 namespace SharkyDog\mDNS\React;
 use SharkyDog\mDNS\Socket;
+use SharkyDog\mDNS\DnsMessage;
 use React\Dns\Query\ExecutorInterface;
 use React\Dns\Query\Query;
 use React\Dns\Model\Message;
@@ -33,7 +34,9 @@ class UnicastExecutor implements ExecutorInterface {
     });
 
     $socket->on('message', function($message,$addr) use($deferred,$mesgid) {
-      $message = Socket::dnsDecoder()->parseMessage($message);
+      if(!($message = DnsMessage::decode($message))) {
+        return;
+      }
 
       if($message->qr !== true) {
         return;
@@ -61,7 +64,7 @@ class UnicastExecutor implements ExecutorInterface {
       }
     });
 
-    $message = Socket::dnsEncoder()->toBinary($message);
+    $message = DnsMessage::encode($message);
     $socket->send($message, Socket::NS);
 
     return $deferred->promise()->finally(function() use($socket) {
