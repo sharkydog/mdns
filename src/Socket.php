@@ -23,11 +23,23 @@ final class Socket extends EventEmitter {
     self::$_packet_size = max(12,$size);
   }
 
+  public static function dnsDecoder(): DnsParser {
+    if(!self::$_decoder) {
+      self::$_decoder = new DnsParser;
+    }
+    return self::$_decoder;
+  }
+
+  public static function dnsEncoder(): DnsEncoder {
+    if(!self::$_encoder) {
+      self::$_encoder = new DnsEncoder;
+    }
+    return self::$_encoder;
+  }
+
   public function __construct() {
     if(!self::$_emitter) {
       self::$_emitter = new EventEmitter;
-      self::$_decoder = new DnsParser;
-      self::$_encoder = new DnsEncoder;
     }
   }
 
@@ -61,7 +73,7 @@ final class Socket extends EventEmitter {
   }
 
   public function send(Message $message, ?string $addr=null): ?bool {
-    $message = self::$_encoder->toBinary($message);
+    $message = self::dnsEncoder()->toBinary($message);
 
     if(strlen($message) > self::$_packet_size) {
       return false;
@@ -112,7 +124,7 @@ final class Socket extends EventEmitter {
       }
 
       try {
-        $message = self::$_decoder->parseMessage($data);
+        $message = self::dnsDecoder()->parseMessage($data);
       } catch(\Exception $e) {
         return;
       }
