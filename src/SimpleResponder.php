@@ -158,7 +158,7 @@ class SimpleResponder {
       while($rr = array_shift($rrs)) {
         if($rr->type == Message::TYPE_PTR) {
           foreach($this->_rr($rr->data, Message::TYPE_ANY) as $addrr) {
-            $key = $addrr->name.'|'.$addrr->type;
+            $key = $addrr->name.'|'.$addrr->type.'|'.(is_string($addrr->data)?$addrr->data:'');
             $response->additional[$key] = $addrr;
             if(in_array($addrr->type, [Message::TYPE_PTR,Message::TYPE_SRV])) {
               $rrs[] = $addrr;
@@ -166,11 +166,11 @@ class SimpleResponder {
           }
         } else if($rr->type == Message::TYPE_SRV) {
           foreach($this->_rr($rr->data['target'], Message::TYPE_A) as $addrr) {
-            $key = $addrr->name.'|'.Message::TYPE_A;
+            $key = $addrr->name.'|'.Message::TYPE_A.'|'.$addrr->data;
             $response->additional[$key] = $addrr;
           }
           foreach($this->_rr($rr->data['target'], Message::TYPE_AAAA) as $addrr) {
-            $key = $addrr->name.'|'.Message::TYPE_AAAA;
+            $key = $addrr->name.'|'.Message::TYPE_AAAA.'|'.$addrr->data;
             $response->additional[$key] = $addrr;
           }
         }
