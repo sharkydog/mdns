@@ -47,6 +47,9 @@ class UnicastExecutor implements ExecutorInterface {
         foreach($message->answers as $record) {
           $this->_collector->answers[] = $record;
         }
+        foreach($message->additional as $record) {
+          $this->_collector->additional[] = $record;
+        }
       } else {
         $deferred->resolve($message);
       }

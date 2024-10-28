@@ -29,19 +29,31 @@ class MulticastExecutor implements ExecutorInterface {
         return;
       }
 
+      $found = false;
+
       foreach($message->answers as $record) {
-        if($record->type != $rrtype) {
-          continue;
+        if(!$found) {
+          if($record->type != $rrtype) {
+            continue;
+          }
+          if(strtolower($record->name) != $rrname) {
+            continue;
+          }
         }
-        if(strtolower($record->name) != $rrname) {
-          continue;
-        }
+
+        $found = true;
 
         if($this->_collector) {
           $this->_collector->answers[] = $record;
         } else {
           $deferred->resolve($message);
           return;
+        }
+      }
+
+      if($found && $this->_collector) {
+        foreach($message->additional as $record) {
+          $this->_collector->additional[] = $record;
         }
       }
     });
