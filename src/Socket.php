@@ -112,7 +112,7 @@ final class Socket extends EventEmitter {
       }
 
       try {
-        $message = (new DnsParser)->parseMessage($data);
+        $message = self::$_decoder->parseMessage($data);
       } catch(\Exception $e) {
         return;
       }
