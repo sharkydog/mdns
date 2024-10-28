@@ -7,7 +7,12 @@ use React\Dns\Model\Message;
 use React\Promise\Deferred;
 
 class MulticastExecutor implements ExecutorInterface {
+  private $_filter;
   private $_collector;
+
+  public function setFilter(?callable $filter) {
+    $this->_filter = $filter;
+  }
 
   public function setCollector(Message $collector) {
     $this->_collector = $collector;
@@ -39,6 +44,10 @@ class MulticastExecutor implements ExecutorInterface {
           if(strtolower($record->name) != $rrname) {
             continue;
           }
+        }
+
+        if($this->_filter && ($this->_filter)($message,$addr) === false) {
+          return;
         }
 
         $found = true;

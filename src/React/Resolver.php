@@ -32,6 +32,10 @@ class Resolver implements ResolverInterface {
     $this->_resolver_dns = $dnsResolver;
   }
 
+  public function setMDnsFilter(?callable $filter) {
+    $this->_executor_mdns->setFilter($filter);
+  }
+
   public function setDnsResolver(?ResolverInterface $dnsResolver) {
     $this->_resolver_dns = $dnsResolver;
   }

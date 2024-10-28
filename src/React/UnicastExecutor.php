@@ -10,7 +10,12 @@ use React\Dns\Protocol\Parser as DnsParser;
 use React\Dns\Protocol\BinaryDumper as DnsEncoder;
 
 class UnicastExecutor implements ExecutorInterface {
+  private $_filter;
   private $_collector;
+
+  public function setFilter(?callable $filter) {
+    $this->_filter = $filter;
+  }
 
   public function setCollector(Message $collector) {
     $this->_collector = $collector;
@@ -30,13 +35,17 @@ class UnicastExecutor implements ExecutorInterface {
       throw new \RuntimeException('mDNS query for '.$rrname.'['.$rrtype.'] cancelled');
     });
 
-    $socket->on('message', function($message) use($parser,$deferred,$mesgid) {
+    $socket->on('message', function($message,$addr) use($parser,$deferred,$mesgid) {
       $message = $parser->parseMessage($message);
 
       if($message->qr !== true) {
         return;
       }
       if($message->id !== $mesgid) {
+        return;
+      }
+
+      if($this->_filter && ($this->_filter)($message,$addr) === false) {
         return;
       }
 
