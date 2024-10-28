@@ -225,6 +225,11 @@ Replies to queries for `PTR` or `SRV` will add additional records that exist in 
 - Any records a `PTR` is pointing to.
 - The target of a `SRV` (an `A`, `AAAA` or both).
 
+If the response becomes too big, the additional records will be removed. Default message size is 1472 bytes, can be changed with `SharkyDog\mDNS\Socket::setPacketSize()`. Minimum is 12 bytes (dns message header), maximum is unbound.
+```php
+public static function setPacketSize(int $size);
+```
+
 ### Message filter for the resolver (from v1.3)
 This is a callback that can filter out DNS messages before they are handled by the resolver.
 The purpose of this filter is to remove unwanted records in multi mode (`$multi == true`) or to select the exact record in single mode (`$multi == false`) instead of the first received.
