@@ -1,6 +1,7 @@
 <?php
 namespace SharkyDog\mDNS\React;
 use SharkyDog\mDNS\Socket;
+use SharkyDog\mDNS\DnsMessage;
 use React\Dns\Query\ExecutorInterface;
 use React\Dns\Query\Query;
 use React\Dns\Model\Message;
@@ -29,8 +30,11 @@ class MulticastExecutor implements ExecutorInterface {
       throw new \RuntimeException('mDNS query for '.$rrname.'['.$rrtype.'] cancelled');
     });
 
-    $socket->on('dns-message', function($message,$addr) use($rrtype,$rrname,$deferred) {
-      if($message->qr !== true) {
+    $socket->on('raw-message', function($message,$addr) use($rrtype,$rrname,$deferred) {
+      if(!DnsMessage::validReply($message,null,Message::RCODE_OK)) {
+        return;
+      }
+      if(!($message = DnsMessage::decode($message))) {
         return;
       }
 

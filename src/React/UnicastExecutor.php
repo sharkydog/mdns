@@ -34,14 +34,10 @@ class UnicastExecutor implements ExecutorInterface {
     });
 
     $socket->on('message', function($message,$addr) use($deferred,$mesgid) {
+      if(!DnsMessage::validReply($message,$mesgid,Message::RCODE_OK)) {
+        return;
+      }
       if(!($message = DnsMessage::decode($message))) {
-        return;
-      }
-
-      if($message->qr !== true) {
-        return;
-      }
-      if($message->id !== $mesgid) {
         return;
       }
 

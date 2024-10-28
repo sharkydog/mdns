@@ -75,8 +75,11 @@ class SimpleResponder {
 
     $socket = $this->_socket = new Socket;
 
-    $socket->on('dns-message', function($message,$addr,$socket) {
-      if($message->qr !== false) {
+    $socket->on('raw-message', function($message,$addr,$socket) {
+      if(!DnsMessage::validQuery($message)) {
+        return;
+      }
+      if(!($message = DnsMessage::decode($message))) {
         return;
       }
 
