@@ -190,3 +190,37 @@ Array
 )
 ```
 Probably many more.
+
+### Additional records (from v1.3)
+#### Resolver can now return additional records too.
+```php
+public function resolveAll($domain, $type, bool $multi=false, bool $additional=false);
+```
+Off by default as this can increase the size of the response significantly and it changes the structure of the response array a little.
+```php
+use SharkyDog\mDNS;
+use React\Dns\Model\Message;
+
+$resolver = new mDNS\React\Resolver(2);
+$resolver->resolveAll('_http._tcp.local', Message::TYPE_PTR, false, true)->then(
+  function($data) {
+    $additional = isset($data['additional']) ? array_pop($data) : null;
+    print_r(array_unique($data));
+    print_r($additional);
+  },
+  function(\Exception $e) {
+    print "Error: ".$e->getMessage()."\n";
+  }
+);
+```
+The additional records are put in `additional` element of the response array and will always be the last one.
+Each element in this array is a `React\Dns\Model\Record` object.
+
+For service discovery, most devices respond on query for `_svctype._tcp.local` and `_services._dns-sd._udp.local` with a `PTR` for an instance of that service in `answers` section and `SRV`, `TXT`, `A` and `AAAA` in `additional` section.
+
+Any records in `answers` section of the DNS message that do not match the name in the query will be moved to `additional`.
+
+#### Responder (`SharkyDog\mDNS\SimpleResponder`).
+Replies to queries for `PTR` or `SRV` will add additional records that exist in the responder, added via `addRecordIPv4()`, `addRecordIPv6()`, `addRecord()` or `addService()`.
+- Any records a `PTR` is pointing to.
+- The target of a `SRV` (an `A`, `AAAA` or both).
