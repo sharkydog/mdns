@@ -1,6 +1,9 @@
 # mdns
 mDNS resolver and responder based on ReactPHP
 
+## Concurrency is broken at the moment!
+A new query can be executed after the previous has finished (resolved or rejected).
+
 ### Resolver
 The resolver implements React\Dns\Resolver\ResolverInterface, so it can be used in connectors.
 
