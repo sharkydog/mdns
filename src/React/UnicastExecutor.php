@@ -33,7 +33,10 @@ class UnicastExecutor implements ExecutorInterface {
       throw new \RuntimeException('mDNS query for '.$rrname.'['.$rrtype.'] cancelled');
     });
 
-    $socket->on('message', function($message,$addr) use($deferred,$mesgid) {
+    $collector = $this->_collector;
+    $this->_collector = null;
+
+    $socket->on('message', function($message,$addr) use($deferred,$mesgid,$collector) {
       if(!DnsMessage::validReply($message,$mesgid,Message::RCODE_OK)) {
         return;
       }
@@ -45,15 +48,15 @@ class UnicastExecutor implements ExecutorInterface {
         return;
       }
 
-      if($this->_collector) {
-        if(!$this->_collector->id) {
-          $this->_collector->id = $message->id;
+      if($collector) {
+        if(!$collector->id) {
+          $collector->id = $message->id;
         }
         foreach($message->answers as $record) {
-          $this->_collector->answers[] = $record;
+          $collector->answers[] = $record;
         }
         foreach($message->additional as $record) {
-          $this->_collector->additional[] = $record;
+          $collector->additional[] = $record;
         }
       } else {
         $deferred->resolve($message);
@@ -65,7 +68,6 @@ class UnicastExecutor implements ExecutorInterface {
 
     return $deferred->promise()->finally(function() use($socket) {
       $socket->close();
-      $this->_collector = null;
     });
   }
 }

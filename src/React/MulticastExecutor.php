@@ -30,7 +30,10 @@ class MulticastExecutor implements ExecutorInterface {
       throw new \RuntimeException('mDNS query for '.$rrname.'['.$rrtype.'] cancelled');
     });
 
-    $socket->on('raw-message', function($message,$addr) use($rrtype,$rrname,$deferred) {
+    $collector = $this->_collector;
+    $this->_collector = null;
+
+    $socket->on('raw-message', function($message,$addr) use($rrtype,$rrname,$deferred,$collector) {
       if(!DnsMessage::validReply($message,null,Message::RCODE_OK)) {
         return;
       }
@@ -56,17 +59,17 @@ class MulticastExecutor implements ExecutorInterface {
 
         $found = true;
 
-        if($this->_collector) {
-          $this->_collector->answers[] = $record;
+        if($collector) {
+          $collector->answers[] = $record;
         } else {
           $deferred->resolve($message);
           return;
         }
       }
 
-      if($found && $this->_collector) {
+      if($found && $collector) {
         foreach($message->additional as $record) {
-          $this->_collector->additional[] = $record;
+          $collector->additional[] = $record;
         }
       }
     });
@@ -75,7 +78,6 @@ class MulticastExecutor implements ExecutorInterface {
 
     return $deferred->promise()->finally(function() use($socket) {
       $socket->removeAllListeners();
-      $this->_collector = null;
     });
   }
 }
