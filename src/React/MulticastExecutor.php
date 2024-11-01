@@ -9,10 +9,15 @@ use React\Promise\Deferred;
 
 class MulticastExecutor implements ExecutorInterface {
   private $_filter;
+  private $_filterQuery;
   private $_collector;
 
-  public function setFilter(?callable $filter) {
-    $this->_filter = $filter;
+  public function setFilter(?callable $filter, bool $query=false) {
+    if($query) {
+      $this->_filterQuery = $filter;
+    } else {
+      $this->_filter = $filter;
+    }
   }
 
   public function setCollector(Message $collector) {
@@ -32,8 +37,10 @@ class MulticastExecutor implements ExecutorInterface {
 
     $collector = $this->_collector;
     $this->_collector = null;
+    $filterQuery = $this->_filterQuery;
+    $this->_filterQuery = null;
 
-    $socket->on('raw-message', function($message,$addr) use($rrtype,$rrname,$deferred,$collector) {
+    $socket->on('raw-message', function($message,$addr) use($query,$rrtype,$rrname,$deferred,$collector,$filterQuery) {
       if(!DnsMessage::validReply($message,null,Message::RCODE_OK)) {
         return;
       }
@@ -42,6 +49,7 @@ class MulticastExecutor implements ExecutorInterface {
       }
 
       $found = false;
+      $filter = null;
 
       foreach($message->answers as $record) {
         if(!$found) {
@@ -53,7 +61,25 @@ class MulticastExecutor implements ExecutorInterface {
           }
         }
 
-        if($this->_filter && ($this->_filter)($message,$addr) === false) {
+        try {
+          if($this->_filter) {
+            if(($filter = ($this->_filter)($message,$addr,$query)) === false) {
+              return;
+            } else if($filter instanceOf Message) {
+              $deferred->resolve($filter);
+              return;
+            }
+          }
+          if($filter === null && $filterQuery) {
+            if(($filter = $filterQuery($message,$addr,$query)) === false) {
+              return;
+            } else if($filter instanceOf Message) {
+              $deferred->resolve($filter);
+              return;
+            }
+          }
+        } catch(\Exception $e) {
+          $deferred->reject($e);
           return;
         }
 
@@ -70,6 +96,9 @@ class MulticastExecutor implements ExecutorInterface {
       if($found && $collector) {
         foreach($message->additional as $record) {
           $collector->additional[] = $record;
+        }
+        if($filter === true) {
+          $deferred->resolve($collector);
         }
       }
     });

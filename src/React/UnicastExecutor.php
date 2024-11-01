@@ -10,10 +10,15 @@ use Clue\React\Multicast\Factory as MulticastFactory;
 
 class UnicastExecutor implements ExecutorInterface {
   private $_filter;
+  private $_filterQuery;
   private $_collector;
 
-  public function setFilter(?callable $filter) {
-    $this->_filter = $filter;
+  public function setFilter(?callable $filter, bool $query=false) {
+    if($query) {
+      $this->_filterQuery = $filter;
+    } else {
+      $this->_filter = $filter;
+    }
   }
 
   public function setCollector(Message $collector) {
@@ -35,8 +40,10 @@ class UnicastExecutor implements ExecutorInterface {
 
     $collector = $this->_collector;
     $this->_collector = null;
+    $filterQuery = $this->_filterQuery;
+    $this->_filterQuery = null;
 
-    $socket->on('message', function($message,$addr) use($deferred,$mesgid,$collector) {
+    $socket->on('message', function($message,$addr) use($query,$deferred,$mesgid,$collector,$filterQuery) {
       if(!DnsMessage::validReply($message,$mesgid,Message::RCODE_OK)) {
         return;
       }
@@ -44,19 +51,43 @@ class UnicastExecutor implements ExecutorInterface {
         return;
       }
 
-      if($this->_filter && ($this->_filter)($message,$addr) === false) {
+      $filter = null;
+
+      try {
+        if($this->_filter) {
+          if(($filter = ($this->_filter)($message,$addr,$query)) === false) {
+            return;
+          } else if($filter instanceOf Message) {
+            $deferred->resolve($filter);
+            return;
+          }
+        }
+        if($filter === null && $filterQuery) {
+          if(($filter = $filterQuery($message,$addr,$query)) === false) {
+            return;
+          } else if($filter instanceOf Message) {
+            $deferred->resolve($filter);
+            return;
+          }
+        }
+      } catch(\Exception $e) {
+        $deferred->reject($e);
         return;
       }
 
       if($collector) {
         if(!$collector->id) {
           $collector->id = $message->id;
+          $collector->questions[] = $query;
         }
         foreach($message->answers as $record) {
           $collector->answers[] = $record;
         }
         foreach($message->additional as $record) {
           $collector->additional[] = $record;
+        }
+        if($filter === true) {
+          $deferred->resolve($collector);
         }
       } else {
         $deferred->resolve($message);
