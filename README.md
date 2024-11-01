@@ -276,3 +276,17 @@ $resolver->resolveAll('_http._tcp.local', Message::TYPE_PTR, false, true)->then(
   }
 );
 ```
+From v1.5 filter can receive the query too (`React\Dns\Query\Query`).
+```php
+use React\Dns\Model\Message;
+use React\Dns\Query\Query;
+
+$filter = function(Message $message, string $addr, Query $query) {
+  // some code here
+};
+```
+The filter can:
+- return `false` - skip this message
+- return `true` - stop processing messages and resolve the query with whatever was received so far
+- return `Message` - stop and resolve with returned message, other messages received before in multi mode will be discarded
+- throw exception - reject the query
