@@ -1,11 +1,6 @@
 # mdns
 mDNS resolver and responder based on ReactPHP
 
-## ~~Concurrency is broken at the moment!~~
-~~A new query can be executed after the previous has finished (resolved or rejected).~~
-
-Fixed in `v1.4.1`
-
 ### Resolver
 The resolver implements React\Dns\Resolver\ResolverInterface, so it can be used in connectors.
 
@@ -334,7 +329,7 @@ Then the `SRV` records for every instance, then `A` and/or `AAAA` for the target
 
 A service instance will be discarded if no IP address is found for it. The resolved addresses will be in `Service->target` property as an array of `SharkyDog\mDNS\Discoverer\Address` objects. IP type (IPv4 or IPv6) can be found in `Address->type` property: `React\Dns\Model\Message::TYPE_A` or `React\Dns\Model\Message::TYPE_AAAA`.
 
-An important thing to note is when this is used with a service type, including the reserved one for all services, the resolving will stop only after the full timeout of the Resolver has passed (default 2s). Results will be returned only after that. This can be changed with the message filter (see above) and the service filter (bellow). A per query message filter will apply only to the first query (for the `PTR` record).
+An important thing to note is when this is used with a service type, including the reserved one for all services, the resolving will stop only after the full timeout of the Resolver has passed (default 2s). Results will be returned only after that. This can be changed with the message filter (see above) and the service filter (bellow). A per query message filter can not be used here.
 
 Used with service instance, will resolve without waiting the timeout if `SRV` and ip addresses were found.
 
@@ -355,4 +350,45 @@ public function service(
   Many devices return `SRV`, `TXT`, `A` and `AAAA` additional records in response to a `PTR` query for their service type.
 
 #### Service filter
-to be continued...
+This filter applies to the next `service()` call, after which it will need to be set again if needed.
+
+Returning `false` will discard the service, but the resolver will continue until timeout.
+Returning `true` will stop listening and resolve the promise with the received services.
+```php
+use SharkyDog\mDNS;
+use SharkyDog\mDNS\Discoverer\Service;
+
+// use with custom resolver and change default timeout
+$resolver = new mDNS\React\Resolver(5);
+$discoverer = new mDNS\SimpleDiscoverer($resolver);
+
+// will discard all services not on port 80
+// and stop resolver on two received services
+$discoverer->filter(function(Service $service) {
+  static $counter = 0;
+
+  if($service->port != 80) {
+    return false;
+  }
+
+  if(++$counter == 2) {
+    return true;
+  }
+});
+
+// ask for all services on the network
+// resolve IPv4, not IPv6
+// ask for TXTs if not already in additional from PTRs
+$discoverer->service('_services._dns-sd._udp.local',true,false,true)->then(
+  function($services) {
+    foreach($services as $service) {
+      $address = $service->target[0];
+      print "Service ".$service->name;
+      print " on ".$address->address.":".$service->port."\n";
+    }
+  },
+  function(\Throwable $e) {
+    print "Error: [".get_class($e)."] ".$e->getMessage()."\n";
+  }
+);
+```
