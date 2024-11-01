@@ -304,3 +304,55 @@ $resolver->resolve($domain1);
 // only $filter_all
 $resolver->resolve($domain2);
 ```
+
+### Discoverer (v1.5)
+New class for service discovery.
+```php
+use SharkyDog\mDNS;
+use SharkyDog\mDNS\Discoverer\Service;
+
+$discoverer = new mDNS\SimpleDiscoverer;
+
+// get all web servers that advertise themselves through mDNS
+$discoverer->service('_http._tcp.local')->then(
+  function(Service $services) {
+    foreach($services as $service) {
+      $address = $service->target[0];
+      print "Service ".$service->name;
+      print " on ".$address->address.":".$service->port."\n";
+    }
+  },
+  function(\Throwable $e) {
+    print "Error: [".get_class($e)."] ".$e->getMessage()."\n";
+  }
+);
+```
+The `SimpleDiscoverer->service()` method resolves a given service type (`_http._tcp.local`), a service instance (`server1._http._tcp.local`) or the reserved name for all services (`_services._dns-sd._udp.local`) to an array of `SharkyDog\mDNS\Discoverer\Service` objects. It will throw an exception on any other name, like `some-host.local`.
+
+First, the `PTR` record for the service type is resolved to service instances or other service types in case of `_services._dns-sd._udp.local`.
+Then the `SRV` records for every instance, then `A` and/or `AAAA` for the target from the `SRV`, then the `TXT` records for every instance.
+
+A service instance will be discarded if no IP address is found for it. The resolved addresses will be in `Service->target` property as an array of `SharkyDog\mDNS\Discoverer\Address` objects. IP type (IPv4 or IPv6) can be found in `Address->type` property: `React\Dns\Model\Message::TYPE_A` or `React\Dns\Model\Message::TYPE_AAAA`.
+
+An important thing to note is when this is used with a service type, including the reserved one for all services, the resolving will stop only after the full timeout of the Resolver has passed (default 2s). Results will be returned only after that. This can be changed with the message filter (see above) and the service filter (bellow). A per query message filter will apply only to the first query (for the `PTR` record).
+
+Used with service instance, will resolve without waiting the timeout if `SRV` and ip addresses were found.
+
+The `service()` method has few more parameters.
+```php
+public function service(
+  string $name,
+  bool $ip4=true,
+  bool $ip6=false,
+  bool $txt=false,
+  array &$addrr=[]
+): React\Promise\PromiseInterface;
+```
+- `$ip4` and `$ip6` control what addresses will be resolved. If both are `false`, `$ip4` will be set to `true`.
+- `$txt` control if the `TXT` record will be queried.
+- `$addrr` is and array which will be filled with all additional records in the DNS messages.
+  It can then be passed to another `service()` call and any records in it will be used instead of making new queries for them.
+  Many devices return `SRV`, `TXT`, `A` and `AAAA` additional records in response to a `PTR` query for their service type.
+
+#### Service filter
+to be continued...
