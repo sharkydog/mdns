@@ -290,3 +290,17 @@ The filter can:
 - return `true` - stop processing messages and resolve the query with whatever was received so far
 - return `Message` - stop and resolve with returned message, other messages received before in multi mode will be discarded
 - throw exception - reject the query
+
+#### Per query filter (v1.5)
+The filter above will be used for all queries. From v1.5 a filter can be set only for the next query.
+First the global filter will be called then if it doesn't return anything (or returns `null`) and doesn't throw exception, the per query filter will be called. Parameters are the same, return meaning too.
+```php
+// set filter for all queries
+$resolver->setMDnsFilter($filter_all);
+// set filter for next query
+$resolver->setMDnsQueryFilter($filter_query1);
+// $filter_all, then $filter_query1
+$resolver->resolve($domain1);
+// only $filter_all
+$resolver->resolve($domain2);
+```
