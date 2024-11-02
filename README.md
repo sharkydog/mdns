@@ -392,3 +392,44 @@ $discoverer->service('_services._dns-sd._udp.local',true,false,true)->then(
   }
 );
 ```
+
+### What is my local IP? (v1.5.1)
+This class was made mostly for fun, but could be useful if for some reason your too many Raspberry Pis do not keep a static ip address.
+A query will be sent for IPv4 address and a special domain `_my_lan_ip._test.local` (can be changed) to the mDNS group.
+If there is a responder, it will reply with the source ip address.
+```php
+// Responder
+namespace SharkyDog\mDNS;
+
+// start
+mDNS\WhatIsMyIP::startResponderIPv4();
+// stop
+mDNS\WhatIsMyIP::stopResponderIPv4();
+
+// start, but only answer if the source ip is in this network
+// 192.168.1.1 - 192.168.1.62
+mDNS\WhatIsMyIP::startResponderIPv4('192.168.1.0/26');
+```
+```php
+// Resolver
+namespace SharkyDog\mDNS;
+
+// $resolver is optional, use to change timeout
+$resolver = new mDNS\React\Resolver(2);
+// Accept a reply only if it comes from this network, also optional
+// 192.168.1.1 - 192.168.1.254
+$promise = mDNS\WhatIsMyIP::resolveIPv4('192.168.1.0/24',$resolver);
+
+// Will add the found IP to this mDNS Responder
+$mdnsd = new mDNS\SimpleResponder;
+
+$promise->then(
+  function($ip) use($mdnsd) {
+    print "My IP is ".$ip."\n";
+    $mdnsd->addRecordIPv4('my-local-pc.local', $ip);
+  },
+  function(\Exception $e) {
+    print "Error: [".get_class($e)."] ".$e->getMessage()."\n";
+  }
+);
+```
