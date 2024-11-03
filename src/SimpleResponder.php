@@ -34,6 +34,40 @@ class SimpleResponder {
     $this->_records[$tlc][$record->type][] = $record;
   }
 
+  public function delRecord(string $name, int $type): bool {
+    $name = strtolower($name);
+    $tlc = substr($name,0,3);
+    $found = false;
+
+    if(!isset($this->_records[$tlc])) {
+      return false;
+    }
+    if(!isset($this->_records[$tlc][$type])) {
+      return false;
+    }
+
+    foreach($this->_records[$tlc][$type] as $key => $rr) {
+      if($rr->name != $name) continue;
+      unset($this->_records[$tlc][$type][$key]);
+      $this->_records[$tlc][$type] = array_values($this->_records[$tlc][$type]);
+      $found = true;
+      break;
+    }
+
+    if(!$found) {
+      return false;
+    }
+
+    if(empty($this->_records[$tlc][$type])) {
+      unset($this->_records[$tlc][$type]);
+    }
+    if(empty($this->_records[$tlc])) {
+      unset($this->_records[$tlc]);
+    }
+
+    return true;
+  }
+
   public function addService(string $type, string $instance, ?int $ttl=null, ?string $target=null, int $srvport=0, string ...$txts) {
     $ttl = $this->_rfy()->DefaultTTL($ttl);
 
@@ -66,6 +100,22 @@ class SimpleResponder {
     if(!($this->_rr($svctrgt, Message::TYPE_TXT)[0] ?? null)) {
       $this->addRecord($this->_rfy('TXT', $svctrgt, $ttl, ...$txts));
     }
+  }
+
+  public function addReverseIPv4(string $addr, string $name, int $ttl=120) {
+    if(($iplong = ip2long($addr)) === false) {
+      throw new \Exception('Invalid IPv4 address');
+    }
+    $ptrname = inet_ntop(pack('V',$iplong)).'.in-addr.arpa';
+    $this->addRecord($this->_rfy('PTR', $ptrname, $name, $ttl));
+  }
+
+  public function delReverseIPv4(string $addr): bool {
+    if(($iplong = ip2long($addr)) === false) {
+      throw new \Exception('Invalid IPv4 address');
+    }
+    $ptrname = inet_ntop(pack('V',$iplong)).'.in-addr.arpa';
+    return $this->delRecord($ptrname, Message::TYPE_PTR);
   }
 
   public function start() {
