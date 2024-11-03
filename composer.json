@@ -12,7 +12,8 @@
     "php": ">=7.4",
     "react/event-loop": "^1.5",
     "react/dns": "^1.13",
-    "clue/multicast-react": "^1.2"
+    "clue/multicast-react": "^1.2",
+    "ext-sockets": "*"
   },
   "suggest": {
     "sharkydog/logger": "Display messages other than errors and warnings"
