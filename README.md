@@ -53,6 +53,15 @@ public function addRecordIPv4(string $name, string $addr, int $ttl=120);
 public function addRecordIPv6(string $name, string $addr, int $ttl=120);
 public function addRecord(React\Dns\Model\Record $record);
 ```
+From v1.6
+```php
+public function delRecord(string $name, int $type): bool;
+public function addReverseIPv4(string $addr, string $name, int $ttl=120);
+public function delReverseIPv4(string $addr): bool;
+```
+Type is one of `React\Dns\Model\Message::TYPE_` constants.
+Single call for deleting a record will delete one record and return `true` or `false` if not found.
+If there are multiple with the same name and type, to delete all run a loop until `false` is returned.
 
 ### Service discovery responder (from v1.1)
 Basic service discovery
