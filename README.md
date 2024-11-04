@@ -1,5 +1,5 @@
 # mdns
-mDNS resolver and responder based on ReactPHP
+Multicast DNS (mDNS) resolver and responder with service discovery (DNS-SD) based on ReactPHP
 
 ### Resolver
 The resolver implements React\Dns\Resolver\ResolverInterface, so it can be used in connectors.
@@ -90,7 +90,7 @@ public function addService(string $type, string $instance, ?int $ttl=null, ?stri
 - `A` and `AAAA` records can not be auto created
 
 This service discovery still suffers from the same limitation of the `SimpleResponder` class mentioned above.
-One record per message (help appreciated), which means a discoverer will have to make separate queries to follow PTRs.
+One answer per message, but additional `SRV`, `TXT`, `A` and `AAAA` records will be returned if reply does not grow too large.
 
 ### RecordFactory class (from v1.1)
 New class (`SharkyDog\mDNS\RecordFactory`) to help create records and validate some parameters. IPv4 and IPv6 addresses are not yet checked thought.
@@ -103,29 +103,6 @@ $mdnsd = new mDNS\SimpleResponder;
 $mdnsd->addRecord($rfy->A('my-router.local', '192.168.1.1'));
 $mdnsd->addRecord($rfy->A('my-pc.local', '192.168.1.2'));
 $mdnsd->addRecord($rfy->TXT('sometxt-my-pc.local', 120, 'txt1','txt2','...'));
-```
-### Service discovery querier
-Discovering services is not implemented yet, but there is a hack around with a little promise chain.
-You need to know the exact name of the `SRV` record for the instance of the service you are interested in.
-One more promise and you can get the `TXT` record too.
-
-```php
-use SharkyDog\mDNS;
-use React\Dns\Model\Message;
-
-$resolver = new mDNS\React\Resolver;
-$port = 0;
-
-$resolver->resolveAll(
-  'testsvc1._testsvc._tcp.local', Message::TYPE_SRV
-)->then(function($srv) use($resolver,&$port) {
-  $port = $srv[0]['port'];
-  return $resolver->resolve($srv[0]['target']);
-})->then(function($addr) use(&$port) {
-  print "Found service at ".$addr.":".$port."\n";
-})->catch(function(\Exception $e) {
-  print "Error: ".$e->getMessage()."\n";
-});
 ```
 
 ### Multiple messages resolver (from v1.2)
