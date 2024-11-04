@@ -1,6 +1,7 @@
 {
   "name": "sharkydog/mdns",
-  "description": "mDNS resolver and responder based on ReactPHP",
+  "description": "Multicast DNS (mDNS) resolver and responder with service discovery (DNS-SD)",
+  "keywords": ["Multicast DNS", "mDNS", "DNS-SD"],
   "license": "MIT",
   "authors": [
     {
