@@ -47,23 +47,22 @@ $mdnsd->start();
 It's a "SimpleResponder", because it will only respond to simple queries.
 Any record type can be added and the responder will answer with one record per message, matching query name to record name.
 On qtype "ANY", all records matching name will be sent, again one record per message.
+`$cfbit` is the "cache-flush bit" from RFC6762, `SRV` and `TXT` records created by `addService()` bellow will have the cache-flush bit set.
 
 ```php
-public function addRecordIPv4(string $name, string $addr, int $ttl=120);
-public function addRecordIPv6(string $name, string $addr, int $ttl=120);
-public function addRecord(React\Dns\Model\Record $record);
-```
-From v1.6
-```php
-public function delRecord(string $name, int $type): bool;
+public function addRecordIPv4(string $name, string $addr, int $ttl=120, $cfbit=true);
+public function addRecordIPv6(string $name, string $addr, int $ttl=120, $cfbit=true);
+public function addRecord(React\Dns\Model\Record $record, $cfbit=false);
+public function delRecord(string $name, int $type, $data=null): bool;
 public function addReverseIPv4(string $addr, string $name, int $ttl=120);
 public function delReverseIPv4(string $addr): bool;
+public function enableRecord(string $name, int $type, $data=null, bool $enable=true);
 ```
 Type is one of `React\Dns\Model\Message::TYPE_` constants.
 Single call for deleting a record will delete one record and return `true` or `false` if not found.
 If there are multiple with the same name and type, to delete all run a loop until `false` is returned.
 
-### Service discovery responder (from v1.1)
+### Service discovery responder
 Basic service discovery
 ```php
 use SharkyDog\mDNS;
@@ -77,6 +76,9 @@ $mdnsd->start();
 The `addService()` is the key point.
 ```php
 public function addService(string $type, string $instance, ?int $ttl=null, ?string $target=null, int $srvport=0, string ...$txts);
+public function delService(string $type, string $instance, bool $srv=true, bool $txt=true);
+public function enableService(string $type, string $instance, bool $enable=true);
+public function advertiseService(string $type, string $instance, ?int $ttl=null);
 ```
 - `$type` and `$instance` form the service `instance1._testsvc1._tcp.local`
 - `$ttl` (default 120) will be used for all records (`PTR`, `SRV` and `TXT`)
@@ -89,10 +91,12 @@ public function addService(string $type, string $instance, ?int $ttl=null, ?stri
   - Same as above, if it does not already exist
 - `A` and `AAAA` records can not be auto created
 
-This service discovery still suffers from the same limitation of the `SimpleResponder` class mentioned above.
-One answer per message, but additional `SRV`, `TXT`, `A` and `AAAA` records will be returned if reply does not grow too large.
+`advertiseService()` when called will send once all records related to that service instance.
 
-### RecordFactory class (from v1.1)
+This service discovery still suffers from the same limitation of the `SimpleResponder` class mentioned above.
+One answer per message, but additional `SRV`, `TXT`, `A` and `AAAA` records will be returned. If the reply grows too large, additional records will be sent in separate messages, but only for multicast replies. In unicast replies only the record matched with the query will be sent, additional records will be removed if they do not fit in a single message.
+
+### RecordFactory class
 New class (`SharkyDog\mDNS\RecordFactory`) to help create records and validate some parameters. IPv4 and IPv6 addresses are not yet checked thought.
 ```php
 use SharkyDog\mDNS;
@@ -105,7 +109,7 @@ $mdnsd->addRecord($rfy->A('my-pc.local', '192.168.1.2'));
 $mdnsd->addRecord($rfy->TXT('sometxt-my-pc.local', 120, 'txt1','txt2','...'));
 ```
 
-### Multiple messages resolver (from v1.2)
+### Multiple messages resolver
 React resolver will use the first received message, which is proper for DNS, but in mDNS world multiple hosts can answer a query.
 To return answers from multiple messages, some extensions to `SharkyDog\mDNS\React\Resolver` and executors need to be made.
 
@@ -177,8 +181,7 @@ Array
 ```
 Probably many more.
 
-### Additional records (from v1.3)
-#### Resolver can now return additional records too.
+### Additional records
 ```php
 public function resolveAll($domain, $type, bool $multi=false, bool $additional=false);
 ```
@@ -211,12 +214,12 @@ Replies to queries for `PTR` or `SRV` will add additional records that exist in 
 - Any records a `PTR` is pointing to.
 - The target of a `SRV` (an `A`, `AAAA` or both).
 
-If the response becomes too big, the additional records will be removed. Default message size is 1472 bytes, can be changed with `SharkyDog\mDNS\Socket::setPacketSize()`. Minimum is 12 bytes (dns message header), maximum is unbound.
+If the response becomes too big, the additional records will be removed for unicast replies and sent in separate messages for multicast replies. Default message size is 1472 bytes, can be changed with `SharkyDog\mDNS\Socket::setPacketSize()`. Minimum is 12 bytes (dns message header), maximum is unbound.
 ```php
 public static function setPacketSize(int $size);
 ```
 
-### Message filter for the resolver (from v1.3)
+### Message filter for the resolver
 This is a callback that can filter out DNS messages before they are handled by the resolver.
 The purpose of this filter is to remove unwanted records in multi mode (`$multi == true`) or to select the exact record in single mode (`$multi == false`) instead of the first received.
 This also reflects on what additional records will be included as nothing is used from filtered out messages.
@@ -272,7 +275,7 @@ The filter can:
 - return `Message` - stop and resolve with returned message, other messages received before in multi mode will be discarded
 - throw exception - reject the query
 
-#### Per query filter (v1.5)
+#### Per query filter
 The filter above will be used for all queries. From v1.5 a filter can be set only for the next query.
 First the global filter will be called then if it doesn't return anything (or returns `null`) and doesn't throw exception, the per query filter will be called. Parameters are the same, return meaning too.
 ```php
@@ -286,7 +289,7 @@ $resolver->resolve($domain1);
 $resolver->resolve($domain2);
 ```
 
-### Discoverer (v1.5)
+### Discoverer
 New class for service discovery.
 ```php
 use SharkyDog\mDNS;
@@ -379,7 +382,7 @@ $discoverer->service('_services._dns-sd._udp.local',true,false,true)->then(
 );
 ```
 
-### What is my local IP? (v1.5.1)
+### What is my local IP?
 This class was made mostly for fun, but could be useful if for some reason your too many Raspberry Pis do not keep a static ip address.
 A query will be sent for IPv4 address and a special domain `_my_lan_ip._test.local` (can be changed) to the mDNS group.
 If there is a responder, it will reply with the source ip address.
