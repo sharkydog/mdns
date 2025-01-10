@@ -34,7 +34,7 @@ class SimpleResponder {
     $this->_records[$tlc][$record->type][] = $record;
   }
 
-  public function delRecord(string $name, int $type): bool {
+  public function delRecord(string $name, int $type, $data=null): bool {
     $name = strtolower($name);
     $tlc = substr($name,0,3);
     $found = false;
@@ -48,6 +48,7 @@ class SimpleResponder {
 
     foreach($this->_records[$tlc][$type] as $key => $rr) {
       if($rr->name != $name) continue;
+      if($data!==null && $rr->data !== $data) continue;
       unset($this->_records[$tlc][$type][$key]);
       $this->_records[$tlc][$type] = array_values($this->_records[$tlc][$type]);
       $found = true;
@@ -75,30 +76,22 @@ class SimpleResponder {
     $svctrgt = $instance.'.'.$svcname;
     $this->addRecord($this->_rfy('PTR', $svcname, $svctrgt, $ttl));
 
-    $svcnamelc = strtolower($svcname);
-    $rrsptr = $this->_rr('_services._dns-sd._udp.local', Message::TYPE_PTR);
-    $found = false;
+    $rr = $this->_rr('_services._dns-sd._udp.local', Message::TYPE_PTR, strtolower($svcname))[0] ?? null;
 
-    foreach($rrsptr as $rrptr) {
-      if($rrptr->data == $svcnamelc) {
-        $found = true;
-        break;
-      }
-    }
-    if(!$found) {
-      $this->addRecord($this->_rfy('PTR', '_services._dns-sd._udp.local', $svcname, $ttl));
+    if(!$rr) {
+      $this->addRecord($this->_rfy('PTR', '_services._dns-sd._udp.local', $svcname, $ttl), false);
     }
 
     if(!$target) {
       return;
     }
 
-    if(!($this->_rr($svctrgt, Message::TYPE_SRV)[0] ?? null)) {
-      $this->addRecord($this->_rfy('SRV', $svctrgt, 0, 0, $srvport, $target, $ttl));
+    if(!($this->_rr($svctrgt, Message::TYPE_SRV, null)[0] ?? null)) {
+      $this->addRecord($this->_rfy('SRV', $svctrgt, 0, 0, $srvport, $target, $ttl), true);
     }
 
-    if(!($this->_rr($svctrgt, Message::TYPE_TXT)[0] ?? null)) {
-      $this->addRecord($this->_rfy('TXT', $svctrgt, $ttl, ...$txts));
+    if(!($this->_rr($svctrgt, Message::TYPE_TXT, null)[0] ?? null)) {
+      $this->addRecord($this->_rfy('TXT', $svctrgt, $ttl, ...$txts), true);
     }
   }
 
@@ -258,7 +251,7 @@ class SimpleResponder {
     return $rr ? self::$_rrfactory->$rr(...$args) : self::$_rrfactory;
   }
 
-  private function _rr($name, $type) {
+  private function _rr($name, $type, $data=null) {
     $name = strtolower($name);
     $tlc = substr($name,0,3);
     $rrs = [];
@@ -276,9 +269,8 @@ class SimpleResponder {
 
     foreach($recordss as $rrtype => &$records) {
       foreach($records as $record) {
-        if($record->name != $name) {
-          continue;
-        }
+        if($record->name != $name) continue;
+        if($data!==null && $record->data !== $data) continue;
         $rrs[] = $record;
       }
     }
