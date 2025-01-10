@@ -12,15 +12,16 @@ class SimpleResponder {
   private $_send_ms = 0;
   private $_send_timer;
 
-  public function addRecordIPv4(string $name, string $addr, int $ttl=120) {
-    $this->addRecord($this->_rfy('A', $name, $addr, $ttl));
+  public function addRecordIPv4(string $name, string $addr, int $ttl=120, $cfbit=true) {
+    $this->addRecord($this->_rfy('A', $name, $addr, $ttl), $cfbit);
   }
 
-  public function addRecordIPv6(string $name, string $addr, int $ttl=120) {
-    $this->addRecord($this->_rfy('AAAA', $name, $addr, $ttl));
+  public function addRecordIPv6(string $name, string $addr, int $ttl=120, $cfbit=true) {
+    $this->addRecord($this->_rfy('AAAA', $name, $addr, $ttl), $cfbit);
   }
 
-  public function addRecord(Record $record) {
+  public function addRecord(Record $record, $cfbit=false) {
+    if($cfbit) $record->class |= 0x8000;
     $record->name = strtolower($record->name);
     $tlc = substr($record->name,0,3);
 
@@ -228,7 +229,8 @@ class SimpleResponder {
       $data->qry = $data->qry ?? null;
       $response = new Message;
       $response->qr = true;
-      $response->answers[] = $data->rr;
+      $response->aa = true;
+      $response->answers[] = clone $data->rr;
 
       if($data->id ?? null) {
         $response->id = $data->id;
@@ -242,7 +244,7 @@ class SimpleResponder {
         if($rr->type == Message::TYPE_PTR) {
           foreach($this->_rr($rr->data, Message::TYPE_ANY) as $addrr) {
             $key = $addrr->name.'|'.$addrr->type.'|'.(is_string($addrr->data)?$addrr->data:'');
-            $response->additional[$key] = $addrr;
+            $response->additional[$key] = clone $addrr;
             if(in_array($addrr->type, [Message::TYPE_PTR,Message::TYPE_SRV])) {
               $rrs[] = $addrr;
             }
@@ -250,15 +252,24 @@ class SimpleResponder {
         } else if($rr->type == Message::TYPE_SRV) {
           foreach($this->_rr($rr->data['target'], Message::TYPE_A) as $addrr) {
             $key = $addrr->name.'|'.Message::TYPE_A.'|'.$addrr->data;
-            $response->additional[$key] = $addrr;
+            $response->additional[$key] = clone $addrr;
           }
           foreach($this->_rr($rr->data['target'], Message::TYPE_AAAA) as $addrr) {
             $key = $addrr->name.'|'.Message::TYPE_AAAA.'|'.$addrr->data;
-            $response->additional[$key] = $addrr;
+            $response->additional[$key] = clone $addrr;
           }
         }
       }
       $response->additional = array_values($response->additional);
+
+      if($data->qry) {
+        foreach($response->answers as $rr) {
+          $rr->class &= ~0x8000;
+        }
+        foreach($response->additional as $rr) {
+          $rr->class &= ~0x8000;
+        }
+      }
 
       $data->addr = $data->addr ?? null;
       $dbg_rrdata = is_string($data->rr->data) ? ','.$data->rr->data : '';
