@@ -103,6 +103,37 @@ class SimpleResponder {
     }
   }
 
+  public function delService(string $type, string $instance, bool $srv=true, bool $txt=true) {
+    $svcname = $type.'.local';
+    $svctrgt = $instance.'.'.$svcname;
+
+    $this->delRecord($svcname, Message::TYPE_PTR, strtolower($svctrgt));
+
+    if($srv) {
+      $this->delRecord($svctrgt, Message::TYPE_SRV);
+    }
+    if($txt) {
+      $this->delRecord($svctrgt, Message::TYPE_TXT);
+    }
+
+    if(!count($this->_rr($svcname, Message::TYPE_PTR, null, null))) {
+      $this->delRecord('_services._dns-sd._udp.local', Message::TYPE_PTR, strtolower($svcname));
+    }
+  }
+
+  public function enableService(string $type, string $instance, bool $enable=true) {
+    $svcname = $type.'.local';
+    $svctrgt = $instance.'.'.$svcname;
+
+    $this->enableRecord($svctrgt, Message::TYPE_SRV, null, $enable);
+    $this->enableRecord($svctrgt, Message::TYPE_TXT, null, $enable);
+    $this->enableRecord($svcname, Message::TYPE_PTR, strtolower($svctrgt), $enable);
+
+    if($enable || !count($this->_rr($svcname, Message::TYPE_PTR, null, true))) {
+      $this->enableRecord('_services._dns-sd._udp.local', Message::TYPE_PTR, strtolower($svcname), $enable);
+    }
+  }
+
   public function addReverseIPv4(string $addr, string $name, int $ttl=120) {
     if(($iplong = ip2long($addr)) === false) {
       throw new \Exception('Invalid IPv4 address');
