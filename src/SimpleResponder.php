@@ -180,10 +180,10 @@ class SimpleResponder {
           Log::debug('Responder: '.$addr.' asked for record['.$rr->name.','.$rr->type.$dbg_rrdata.']');
 
           $this->_queue[] = (object)[
-            'i' => $ucp ? $message->id : null,
-            'q' => $ucp ? $query : null,
-            'r' => $rr,
-            'a' => $qu ? $addr : null
+            'id'   => $ucp ? $message->id : null,
+            'qry'  => $ucp ? $query : null,
+            'rr'   => $rr,
+            'addr' => $qu ? $addr : null
           ];
         }
       }
@@ -225,18 +225,19 @@ class SimpleResponder {
         return;
       }
 
+      $data->qry = $data->qry ?? null;
       $response = new Message;
       $response->qr = true;
-      $response->answers[] = $data->r;
+      $response->answers[] = $data->rr;
 
-      if($data->i) {
-        $response->id = $data->i;
+      if($data->id ?? null) {
+        $response->id = $data->id;
       }
-      if($data->q) {
-        $response->questions[] = $data->q;
+      if($data->qry) {
+        $response->questions[] = $data->qry;
       }
 
-      $rrs = [$data->r];
+      $rrs = [$data->rr];
       while($rr = array_shift($rrs)) {
         if($rr->type == Message::TYPE_PTR) {
           foreach($this->_rr($rr->data, Message::TYPE_ANY) as $addrr) {
@@ -259,15 +260,16 @@ class SimpleResponder {
       }
       $response->additional = array_values($response->additional);
 
-      $dbg_rrdata = is_string($data->r->data) ? ','.$data->r->data : '';
-      Log::debug('Responder: send['.($data->a?:'QM').'] record['.$data->r->name.','.$data->r->type.$dbg_rrdata.']');
+      $data->addr = $data->addr ?? null;
+      $dbg_rrdata = is_string($data->rr->data) ? ','.$data->rr->data : '';
+      Log::debug('Responder: send['.($data->addr?:'QM').'] record['.$data->rr->name.','.$data->rr->type.$dbg_rrdata.']');
 
-      $r = $this->_socket->send($response, $data->a);
+      $r = $this->_socket->send($response, $data->addr);
 
       if($r === false && !empty($response->additional)) {
         $response->additional = [];
         Log::debug('Responder: send too big, remove additional and retry');
-        $r = $this->_socket->send($response, $data->a);
+        $r = $this->_socket->send($response, $data->addr);
       }
 
       if($r !== false) {
