@@ -239,28 +239,30 @@ class SimpleResponder {
         $response->questions[] = $data->qry;
       }
 
-      $rrs = [$data->rr];
-      while($rr = array_shift($rrs)) {
-        if($rr->type == Message::TYPE_PTR) {
-          foreach($this->_rr($rr->data, Message::TYPE_ANY) as $addrr) {
-            $key = $addrr->name.'|'.$addrr->type.'|'.(is_string($addrr->data)?$addrr->data:'');
-            $response->additional[$key] = clone $addrr;
-            if(in_array($addrr->type, [Message::TYPE_PTR,Message::TYPE_SRV])) {
-              $rrs[] = $addrr;
+      if($data->adtrr ?? true) {
+        $rrs = [$data->rr];
+        while($rr = array_shift($rrs)) {
+          if($rr->type == Message::TYPE_PTR) {
+            foreach($this->_rr($rr->data, Message::TYPE_ANY) as $addrr) {
+              $key = $addrr->name.'|'.$addrr->type.'|'.(is_string($addrr->data)?$addrr->data:'');
+              $response->additional[$key] = clone $addrr;
+              if(in_array($addrr->type, [Message::TYPE_PTR,Message::TYPE_SRV])) {
+                $rrs[] = $addrr;
+              }
+            }
+          } else if($rr->type == Message::TYPE_SRV) {
+            foreach($this->_rr($rr->data['target'], Message::TYPE_A) as $addrr) {
+              $key = $addrr->name.'|'.Message::TYPE_A.'|'.$addrr->data;
+              $response->additional[$key] = clone $addrr;
+            }
+            foreach($this->_rr($rr->data['target'], Message::TYPE_AAAA) as $addrr) {
+              $key = $addrr->name.'|'.Message::TYPE_AAAA.'|'.$addrr->data;
+              $response->additional[$key] = clone $addrr;
             }
           }
-        } else if($rr->type == Message::TYPE_SRV) {
-          foreach($this->_rr($rr->data['target'], Message::TYPE_A) as $addrr) {
-            $key = $addrr->name.'|'.Message::TYPE_A.'|'.$addrr->data;
-            $response->additional[$key] = clone $addrr;
-          }
-          foreach($this->_rr($rr->data['target'], Message::TYPE_AAAA) as $addrr) {
-            $key = $addrr->name.'|'.Message::TYPE_AAAA.'|'.$addrr->data;
-            $response->additional[$key] = clone $addrr;
-          }
         }
+        $response->additional = array_values($response->additional);
       }
-      $response->additional = array_values($response->additional);
 
       if($data->qry) {
         foreach($response->answers as $rr) {
@@ -277,15 +279,33 @@ class SimpleResponder {
 
       $r = $this->_socket->send($response, $data->addr);
 
-      if($r === false && !empty($response->additional)) {
+      if($r === false) {
+        $rrs = array_merge($response->answers, $response->additional);
+        $response->answers = [array_shift($rrs)];
         $response->additional = [];
-        Log::debug('Responder: send too big, remove additional and retry');
+
+        Log::debug('Responder: message too big, send the first record');
         $r = $this->_socket->send($response, $data->addr);
+      } else {
+        $rrs = [];
+      }
+
+      if(!empty($rrs) && !$data->qry) {
+        Log::debug('Responder: message too big, queue additional records');
+
+        foreach($rrs as $rr) {
+          $dt = clone $data;
+          $dt->rr = $rr;
+          $dt->adtrr = false;
+          $this->_queue[] = $dt;
+        }
       }
 
       if($r !== false) {
         Log::debug('Responder: send OK');
         $this->_send_ms = round(microtime(true) * 1000);
+      } else {
+        Log::debug('Responder: send failed');
       }
 
       $this->_send();
