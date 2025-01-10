@@ -135,6 +135,31 @@ class SimpleResponder {
     }
   }
 
+  public function advertiseService(string $type, string $instance, ?int $ttl=null) {
+    if(!$this->_socket) {
+      return;
+    }
+
+    $svcname = $type.'.local';
+    $svctrgt = $instance.'.'.$svcname;
+
+    if(!($rr = $this->_rr($svcname, Message::TYPE_PTR, strtolower($svctrgt))[0] ?? null)) {
+      return;
+    }
+
+    if($ttl !== null) {
+      $ttl = min(max(0,$ttl),0x7fffffff);
+    }
+
+    $this->_queue[] = (object)[
+      'rr' => $rr,
+      'ttl' => $ttl,
+      'advt' => true
+    ];
+
+    $this->_send();
+  }
+
   public function addReverseIPv4(string $addr, string $name, int $ttl=120) {
     if(($iplong = ip2long($addr)) === false) {
       throw new \Exception('Invalid IPv4 address');
@@ -273,6 +298,20 @@ class SimpleResponder {
         }
       }
 
+      if(($data->ttl ?? null) !== null) {
+        foreach($response->answers as $rr) {
+          $rr->ttl = $data->ttl;
+        }
+        foreach($response->additional as $rr) {
+          $rr->ttl = $data->ttl;
+        }
+      }
+
+      if($data->advt ?? false) {
+        $response->answers = array_merge($response->answers, $response->additional);
+        $response->additional = [];
+      }
+
       $data->addr = $data->addr ?? null;
       $dbg_rrdata = is_string($data->rr->data) ? ','.$data->rr->data : '';
       Log::debug('Responder: send['.($data->addr?:'QM').'] record['.$data->rr->name.','.$data->rr->type.$dbg_rrdata.']');
@@ -296,6 +335,8 @@ class SimpleResponder {
         foreach($rrs as $rr) {
           $dt = clone $data;
           $dt->rr = $rr;
+          $dt->ttl = null;
+          $dt->advt = false;
           $dt->adtrr = false;
           $this->_queue[] = $dt;
         }
