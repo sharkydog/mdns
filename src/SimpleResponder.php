@@ -69,6 +69,12 @@ class SimpleResponder {
     return true;
   }
 
+  public function enableRecord(string $name, int $type, $data=null, bool $enable=true) {
+    foreach($this->_rr($name,$type,$data,!$enable) as $record) {
+      $record->class ^= 0x4000;
+    }
+  }
+
   public function addService(string $type, string $instance, ?int $ttl=null, ?string $target=null, int $srvport=0, string ...$txts) {
     $ttl = $this->_rfy()->DefaultTTL($ttl);
 
@@ -76,21 +82,23 @@ class SimpleResponder {
     $svctrgt = $instance.'.'.$svcname;
     $this->addRecord($this->_rfy('PTR', $svcname, $svctrgt, $ttl));
 
-    $rr = $this->_rr('_services._dns-sd._udp.local', Message::TYPE_PTR, strtolower($svcname))[0] ?? null;
+    $rr = $this->_rr('_services._dns-sd._udp.local', Message::TYPE_PTR, strtolower($svcname), null)[0] ?? null;
 
     if(!$rr) {
       $this->addRecord($this->_rfy('PTR', '_services._dns-sd._udp.local', $svcname, $ttl), false);
+    } else {
+      $rr->class &= ~0x4000;
     }
 
     if(!$target) {
       return;
     }
 
-    if(!($this->_rr($svctrgt, Message::TYPE_SRV, null)[0] ?? null)) {
+    if(!($this->_rr($svctrgt, Message::TYPE_SRV, null, null)[0] ?? null)) {
       $this->addRecord($this->_rfy('SRV', $svctrgt, 0, 0, $srvport, $target, $ttl), true);
     }
 
-    if(!($this->_rr($svctrgt, Message::TYPE_TXT, null)[0] ?? null)) {
+    if(!($this->_rr($svctrgt, Message::TYPE_TXT, null, null)[0] ?? null)) {
       $this->addRecord($this->_rfy('TXT', $svctrgt, $ttl, ...$txts), true);
     }
   }
@@ -251,7 +259,7 @@ class SimpleResponder {
     return $rr ? self::$_rrfactory->$rr(...$args) : self::$_rrfactory;
   }
 
-  private function _rr($name, $type, $data=null) {
+  private function _rr($name, $type, $data=null, $active=true) {
     $name = strtolower($name);
     $tlc = substr($name,0,3);
     $rrs = [];
@@ -269,6 +277,7 @@ class SimpleResponder {
 
     foreach($recordss as $rrtype => &$records) {
       foreach($records as $record) {
+        if($active!==null && !($record->class & 0x4000) != $active) continue;
         if($record->name != $name) continue;
         if($data!==null && $record->data !== $data) continue;
         $rrs[] = $record;
