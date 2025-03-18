@@ -299,7 +299,7 @@ $discoverer = new mDNS\SimpleDiscoverer;
 
 // get all web servers that advertise themselves through mDNS
 $discoverer->service('_http._tcp.local')->then(
-  function(Service $services) {
+  function($services) {
     foreach($services as $service) {
       $address = $service->target[0];
       print "Service ".$service->name;
