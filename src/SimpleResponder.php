@@ -6,74 +6,34 @@ use React\EventLoop\Loop;
 
 class SimpleResponder {
   private static $_rrfactory;
-  private $_records = [];
+  private $_rrstore;
   private $_socket;
   private $_queue = [];
   private $_send_ms = 0;
   private $_send_timer;
 
-  public function addRecordIPv4(string $name, string $addr, int $ttl=120, $cfbit=true) {
+  public function __construct(?RecordStorage $rrstore=null) {
+    $this->_rrstore = $rrstore ?? new RecordStorage;
+  }
+
+  public function addRecordIPv4(string $name, string $addr, int $ttl=120, bool $cfbit=true) {
     $this->addRecord($this->_rfy('A', $name, $addr, $ttl), $cfbit);
   }
 
-  public function addRecordIPv6(string $name, string $addr, int $ttl=120, $cfbit=true) {
+  public function addRecordIPv6(string $name, string $addr, int $ttl=120, bool $cfbit=true) {
     $this->addRecord($this->_rfy('AAAA', $name, $addr, $ttl), $cfbit);
   }
 
-  public function addRecord(Record $record, $cfbit=false) {
-    if($cfbit) $record->class |= 0x8000;
-    $record->name = strtolower($record->name);
-    $tlc = substr($record->name,0,3);
-
-    if(!isset($this->_records[$tlc])) {
-      $this->_records[$tlc] = [];
-    }
-    if(!isset($this->_records[$tlc][$record->type])) {
-      $this->_records[$tlc][$record->type] = [];
-    }
-
-    $this->_records[$tlc][$record->type][] = $record;
+  public function addRecord(Record $record, bool $cfbit=false) {
+    $this->_rrstore->addRecord($record, $cfbit);
   }
 
   public function delRecord(string $name, int $type, $data=null): bool {
-    $name = strtolower($name);
-    $tlc = substr($name,0,3);
-    $found = false;
-
-    if(!isset($this->_records[$tlc])) {
-      return false;
-    }
-    if(!isset($this->_records[$tlc][$type])) {
-      return false;
-    }
-
-    foreach($this->_records[$tlc][$type] as $key => $rr) {
-      if($rr->name != $name) continue;
-      if($data!==null && $rr->data !== $data) continue;
-      unset($this->_records[$tlc][$type][$key]);
-      $this->_records[$tlc][$type] = array_values($this->_records[$tlc][$type]);
-      $found = true;
-      break;
-    }
-
-    if(!$found) {
-      return false;
-    }
-
-    if(empty($this->_records[$tlc][$type])) {
-      unset($this->_records[$tlc][$type]);
-    }
-    if(empty($this->_records[$tlc])) {
-      unset($this->_records[$tlc]);
-    }
-
-    return true;
+    return $this->_rrstore->delRecord($name, $type, $data);
   }
 
   public function enableRecord(string $name, int $type, $data=null, bool $enable=true) {
-    foreach($this->_rr($name,$type,$data,!$enable) as $record) {
-      $record->class ^= 0x4000;
-    }
+    $this->_rrstore->enableRecord($name, $type, $data, $enable);
   }
 
   public function addService(string $type, string $instance, ?int $ttl=null, ?string $target=null, int $srvport=0, string ...$txts) {
@@ -365,30 +325,6 @@ class SimpleResponder {
   }
 
   private function _rr($name, $type, $data=null, $active=true) {
-    $name = strtolower($name);
-    $tlc = substr($name,0,3);
-    $rrs = [];
-
-    if($type == Message::TYPE_ANY) {
-      if(!isset($this->_records[$tlc])) {
-        return $rrs;
-      }
-      $recordss = &$this->_records[$tlc];
-    } else if(!isset($this->_records[$tlc][$type])) {
-      return $rrs;
-    } else {
-      $recordss = [$type => &$this->_records[$tlc][$type]];
-    }
-
-    foreach($recordss as $rrtype => &$records) {
-      foreach($records as $record) {
-        if($active!==null && !($record->class & 0x4000) != $active) continue;
-        if($record->name != $name) continue;
-        if($data!==null && $record->data !== $data) continue;
-        $rrs[] = $record;
-      }
-    }
-
-    return $rrs;
+    return $this->_rrstore->findRecords($name, $type, $data, $active);
   }
 }
