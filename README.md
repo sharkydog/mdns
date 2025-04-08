@@ -209,7 +209,7 @@ For service discovery, most devices respond on query for `_svctype._tcp.local` a
 
 Any records in `answers` section of the DNS message that do not match the name in the query will be moved to `additional`.
 
-#### Responder (`SharkyDog\mDNS\SimpleResponder`).
+#### Responder
 Replies to queries for `PTR` or `SRV` will add additional records that exist in the responder, added via `addRecordIPv4()`, `addRecordIPv6()`, `addRecord()` or `addService()`.
 - Any records a `PTR` is pointing to.
 - The target of a `SRV` (an `A`, `AAAA` or both).
@@ -381,6 +381,79 @@ $discoverer->service('_services._dns-sd._udp.local',true,false,true)->then(
   }
 );
 ```
+
+### Observer (v1.8)
+The observer class (`SharkyDog\mDNS\SimpleObserver`) monitors replies sent to the multicast address, including unsolicited messages with service announcements.
+Discovered services and addresses will be available through callbacks as `SharkyDog\mDNS\Observer\Service` and `SharkyDog\mDNS\Observer\Address` objects, which extend `SharkyDog\mDNS\Discoverer\Service` and `SharkyDog\mDNS\Discoverer\Address` to add status and expire timеstamp properties.
+Services and addresses will be cached for their expire time plus a timeout after which they will be removed.
+While a service or address is cached, all listeners will receive the same object.
+
+Basic usage
+```php
+use SharkyDog\mDNS;
+
+$observer = new mDNS\SimpleObserver;
+$observer->addListener('svc1._test_shd._tcp.local', function($event, $service) {
+  // do something with $service
+}, mDNS\SimpleObserver::SVC_ALL);
+$observer->start();
+```
+This adds a listener for `svc1._test_shd._tcp.local` service instance and all service events.
+
+#### Quick reference
+```php
+public $removeTimeout = 10; // seconds
+public function addListener(string $name, callable $callback, int $events=0): \Closure;
+public function removeListener(string $name, \Closure $callback);
+public function start();
+public function stop(bool $clean=true);
+public function clean();
+```
+Names can be:
+- Address name, like `some-host.local` - listen for addresses
+- Service instance, like `svc1._test_shd._tcp.local` - listen for the given service instance
+- Service type, like `_test_shd._tcp.local` - listen for all service instances of the given type
+- `SimpleObserver::N_ALL_ADDR` - listen for all addresses
+- `SimpleObserver::N_ALL_SVC` - listen for all service instances
+- `SimpleObserver::N_ALL` - listen for everything
+
+Callbacks will be converted to a `\Closure` object and that needs to be used to remove a listener.
+First parameter will be an event, second depends on the name the listener is added for.
+- Address listeners (address name, `SimpleObserver::N_ALL_ADDR`) will receive `SharkyDog\mDNS\Observer\Address` object
+- Service listeners (instance, type or `SimpleObserver::N_ALL_SVC`) will receive `SharkyDog\mDNS\Observer\Service` object and may also receive `SharkyDog\mDNS\Observer\Address` object as third parameter when the event was triggered by an address
+- `SimpleObserver::N_ALL` listeners will receive either address or service or service and address
+
+The `stop()` method by default will clear all cached services and addresses, use `stop(false)` to only stop the multicast socket.
+
+#### Events
+Events are a bitmask of constants defined in `SimpleObserver` class. The last parameter of `addListener()` can be used to set a list of events that listener will be called for, `0` (default) means all events.
+Service listeners may also be called with address events for addresses linked to a service, callbacks will receive the service as the second parameter and the address that triggered the event as the third parameter.
+- `SimpleObserver::SVC_NEW` - New service, wasn't seen before or was previously removed from cache
+- `SimpleObserver::SVC_RENEW` - Renew service, a SRV record was received with ttl>0 before the remove timeout
+- `SimpleObserver::SVC_EXPIRE` - Service expired, ttl of the last SRV record passed and another SRV was not received in that time, remove timeout starts after this event
+- `SimpleObserver::SVC_REMOVE` - Service removed from cache, no SRV received before the remove timeout passed
+- `SimpleObserver::SVC_OFFLINE` - Received a SRV record with ttl==0, this event will cancel expire timer and start remove timeout
+- `SimpleObserver::SVC_ADDR_ONLINE` - Service got its first online address, can be triggered once on the first IPv4 address and again on the first IPv6 address, check service status flags
+- `SimpleObserver::SVC_ADDR_OFFLINE` - Service lost all addresses of a type, as above can be trigger twice, an address is lost when removed or is offline (received A/AAAA record with ttl==0)
+- `SimpleObserver::SVC_ALL` - Bitmask for all `SVC_*` events
+- `SimpleObserver::ADDR_NEW` - New address, unseen A/AAAA record
+- `SimpleObserver::ADDR_RENEW` - Address renew
+- `SimpleObserver::ADDR_EXPIRE` - Address expired
+- `SimpleObserver::ADDR_REMOVE` - Address removed from cache
+- `SimpleObserver::ADDR_OFFLINE` - Received A/AAAA record with ttl==0
+- `SimpleObserver::ADDR_ALL` - All address events
+
+#### Service and address statuses
+The `SharkyDog\mDNS\Observer\Service->status` and `SharkyDog\mDNS\Observer\Address->status` hold a bitmask of status flags defined as constants.
+- `Service::S_ONLINE` - Services will have this flag even when expired or removed. Not set (removed) only when a SRV with ttl==0 is received
+- `Service::S_EXPIRED` - Service expired
+- `Service::S_DETACHED` - Service removed from observer cache, this object will not be updated, listeners will receive new object on next event
+- `Service::S_HAS_TXT` - Service has a TXT record
+- `Service::S_HAS_IP4` - Service has at least one IPv4 address
+- `Service::S_HAS_IP6` - Service has at least one IPv6 address
+- `Address::S_ONLINE` - Address online, same as service online status
+- `Address::S_EXPIRED` - Address expired
+- `Address::S_DETACHED` - Address removed from cache
 
 ### What is my local IP?
 This class was made mostly for fun, but could be useful if for some reason your too many Raspberry Pis do not keep a static ip address.
